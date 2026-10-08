@@ -1,6 +1,6 @@
 # Licencia de Hifa · código visible, uso restringido
 
-Copyright © 2026 [NOMBRE COMPLETO DE LA TITULAR] (GitHub: cvarelalopera). Todos los derechos reservados.
+Copyright © 2026 (GitHub: cvarelalopera). Todos los derechos reservados.
 
 Esta licencia aplica al código fuente, el diseño, los textos, los íconos, el logotipo y la documentación de **Hifa**: «el Software». Al ver, descargar o usar el Software aceptas estos términos.
 
