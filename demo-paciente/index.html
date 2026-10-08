@@ -1,0 +1,447 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Hifa · Demo paciente</title>
+<meta name="description" content="Bitácora personal de bienestar. Tus datos viven cifrados en tu dispositivo.">
+<meta name="theme-color" content="#F4EDE1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1A1613" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Hifa paciente">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ PANTALLA DE CLAVE ============ -->
+<div id="lock" class="lock">
+  <div class="lockin">
+    <div class="brand big"><svg viewBox="0 0 64 64" aria-hidden="true"><path class="logo-hilo" d="M32 50 C27 55 20 57 11 57"/><path class="logo-hilo" d="M32 50 C37 55 44 57 53 57"/><rect class="logo-pie" x="26" y="30" width="12" height="22" rx="6"/><path class="logo-cap" d="M6 32 C6 17 18 7 32 7 C46 7 58 17 58 32 Z"/><rect class="logo-gill" x="9" y="31" width="46" height="4" rx="2"/><circle class="logo-spot" cx="23" cy="20" r="3.4"/><circle class="logo-spot" cx="37" cy="15" r="2.6"/><circle class="logo-spot" cx="45" cy="24" r="2.2"/></svg>hifa</div>
+    <div class="muted center">Los hilos que te conectan</div>
+
+    <form id="fNew" class="stack" hidden autocomplete="on">
+      <h1>Crea tu clave</h1>
+      <div class="muted">Uso Hifa</div>
+      <div class="seg" id="roleNew"><button type="button" aria-pressed="true" data-r="patient">Para mí</button><button type="button" aria-pressed="false" data-r="pro">Como profesional</button></div>
+      <p class="muted">Tu bitácora se guarda <b>solo en este dispositivo</b>, cifrada con esta clave. Nadie más puede abrirla, ni Hifa. <b>Si la olvidas, no hay forma de recuperarla.</b></p>
+      <label class="muted" for="np1">Clave (mínimo 8 caracteres)<input id="np1" class="field" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label class="muted" for="np2">Repite la clave<input id="np2" class="field" type="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="muted small">Idea: una frase de 4 palabras que recuerdes, como «seta lluvia montaña café».</p>
+      <label class="check"><input type="checkbox" id="npOk" required> Entiendo que si olvido la clave pierdo mis datos.</label>
+      <button class="btn primary block" type="submit">Crear mi bitácora</button>
+      <button class="btn block" type="button" id="toRestore">Ya tengo una copia (.json)</button>
+    </form>
+
+    <form id="fUnlock" class="stack" hidden autocomplete="on">
+      <h1>Hola de nuevo</h1>
+      <label class="muted" for="up">Tu clave<input id="up" class="field" type="password" autocomplete="current-password" required></label>
+      <button class="btn primary block" type="submit">Abrir</button>
+      <details class="muted small"><summary>¿Olvidaste la clave?</summary>
+        <p>Sin la clave no se pueden abrir los datos. Si tienes una copia y recuerdas su clave, puedes restaurarla. Si no, solo queda borrar y empezar de nuevo.</p>
+        <div class="row"><button class="btn" type="button" id="toRestore2">Restaurar copia</button><button class="btn danger" type="button" id="wipeLocked">Borrar y empezar</button></div>
+      </details>
+    </form>
+
+    <form id="fRestore" class="stack" hidden>
+      <h1>Restaurar copia</h1>
+      <p class="muted">Elige tu archivo <b>.json</b> de Hifa y escribe la clave con la que lo creaste.</p>
+      <label class="muted" for="rf">Archivo de copia<input id="rf" class="field" type="file" accept=".json,application/json,text/plain" required></label>
+      <label class="muted" for="rp">Clave de la copia<input id="rp" class="field" type="password" autocomplete="current-password" required></label>
+      <button class="btn primary block" type="submit">Restaurar</button>
+      <button class="btn block" type="button" id="backFromRestore">Volver</button>
+    </form>
+
+    <div id="lockBusy" class="center" hidden><div class="spinner" aria-hidden="true"></div><p class="muted" id="lockBusyText">Abriendo…</p></div>
+    <p id="lockErr" class="err" role="alert" hidden></p>
+    <p class="muted small center" id="lockFoot">Sin servidor · sin cuentas · cifrado AES-256</p>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div class="app" id="app" hidden>
+  <header class="top">
+    <div class="brand"><svg viewBox="0 0 64 64" aria-hidden="true"><path class="logo-hilo" d="M32 50 C27 55 20 57 11 57"/><path class="logo-hilo" d="M32 50 C37 55 44 57 53 57"/><rect class="logo-pie" x="26" y="30" width="12" height="22" rx="6"/><path class="logo-cap" d="M6 32 C6 17 18 7 32 7 C46 7 58 17 58 32 Z"/><rect class="logo-gill" x="9" y="31" width="46" height="4" rx="2"/><circle class="logo-spot" cx="23" cy="20" r="3.4"/><circle class="logo-spot" cx="37" cy="15" r="2.6"/><circle class="logo-spot" cx="45" cy="24" r="2.2"/></svg>hifa</div>
+    <button class="help" id="btnHelp" type="button"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7Z"/></svg>Necesito ayuda</button>
+  </header>
+  <svg class="hilos" viewBox="0 0 400 22" preserveAspectRatio="none" aria-hidden="true"><path d="M0 8 C60 14 110 4 170 10 S290 18 400 8"/><path d="M120 8 C135 16 150 18 168 21"/><path d="M260 13 C275 6 292 4 310 3"/><path d="M40 11 C48 16 58 19 70 21"/></svg>
+
+  <!-- HOY -->
+  <section id="v-hoy" class="stack">
+    <div id="banners" class="stack"></div>
+    <div><div class="muted" id="today"></div><h1 id="greet">Hola, ¿cómo estás hoy?</h1></div>
+    <div class="card">
+      <div class="row between"><h2>Ánimo ahora</h2><span class="muted small" id="saveState">Se guarda solo</span></div>
+      <div class="mood" id="mood"></div>
+      <div class="scale"><span>Muy bajo</span><span>Muy bien</span></div>
+      <div class="slider" data-k="en"><label for="s_en">Energía <span></span></label><input id="s_en" type="range" min="1" max="5" step="1" value="3"></div>
+      <div class="slider" data-k="an"><label for="s_an">Ansiedad <span></span></label><input id="s_an" type="range" min="1" max="5" step="1" value="3"></div>
+      <div class="slider" data-k="fo"><label for="s_fo">Foco <span></span></label><input id="s_fo" type="range" min="1" max="5" step="1" value="3"></div>
+      <div class="slider" data-k="su"><label for="s_su">Horas de sueño <span></span></label><input id="s_su" type="range" min="3" max="12" step="0.5" value="7"></div>
+      <p class="muted small">Las barras grises aún no tienen dato. Tócalas para registrar.</p>
+    </div>
+
+    <div class="card" id="sensoryCard" hidden>
+      <h2>Energía sensorial y social</h2>
+      <div class="slider" data-k="carga" data-s="1"><label for="s_carga">Carga sensorial <span></span></label><input id="s_carga" type="range" min="1" max="5" value="3"></div>
+      <div class="scale"><span>Tranquila</span><span>Saturada</span></div>
+      <div class="slider" data-k="bat" data-s="1"><label for="s_bat">Batería social <span></span></label><input id="s_bat" type="range" min="1" max="5" value="3"></div>
+      <div class="scale"><span>Vacía</span><span>Llena</span></div>
+      <div class="muted">¿Hubo saturación hoy?</div>
+      <div class="row" id="satChips"></div>
+      <div class="stack" id="satBox" hidden style="gap:8px">
+        <label class="muted" for="satTrig">¿Qué la detonó?<input id="satTrig" class="field" placeholder="Ruido, luz, gente, cambios de plan…"></label>
+        <label class="muted" for="satHelp">¿Qué ayudó?<input id="satHelp" class="field" placeholder="Silencio, audífonos, salir, estar solx…"></label>
+      </div>
+    </div>
+
+    <div class="card" id="intakeCard">
+      <div class="row between"><h2>Lo que tomé hoy</h2><span class="muted" id="intakeCount">Nada registrado</span></div>
+      <div class="routine" id="routineBox">
+        <div style="min-width:0"><b>Mi rutina</b><div class="muted" id="routineDesc"></div></div>
+        <button class="btn primary" id="routineBtn" type="button">Registrar</button>
+      </div>
+      <div class="stack" id="intakeList" style="gap:8px"></div>
+      <div class="row"><button class="btn" id="addItemBtn" type="button" style="flex:1">+ Agregar</button><button class="btn" id="saveRoutineBtn" type="button" hidden>Guardar como mi rutina</button></div>
+      <div class="stack itemform" id="itemForm" hidden>
+        <div class="muted">Categoría</div>
+        <div class="row" id="catChips"></div>
+        <div class="muted" id="nameLabel">Nombre</div>
+        <div class="row" id="nameChips"></div>
+        <label class="muted" for="itemName">O escríbelo<input id="itemName" class="field" placeholder="Nombre" maxlength="60"></label>
+        <div id="psiloDose" class="stack" style="gap:8px">
+          <div class="muted">Tipo de dosis</div>
+          <div class="dose" id="doseSeg"><button type="button" aria-pressed="true" data-d="micro">Microdosis</button><button type="button" aria-pressed="false" data-d="macro">Macrodosis</button></div>
+        </div>
+        <div class="muted">Forma</div>
+        <div class="row" id="formChips"></div>
+        <div class="row" id="capRow">
+          <label class="muted" for="capN" style="flex:1;min-width:90px">Cápsulas<input id="capN" class="field" type="number" inputmode="numeric" min="1" step="1" value="1"></label>
+          <label class="muted" for="capMg" style="flex:1;min-width:110px">mg por cápsula<input id="capMg" class="field" type="number" inputmode="decimal" min="0" step="any" placeholder="mg"></label>
+          <div class="captotal" id="capTotal"></div>
+        </div>
+        <div class="row" id="qtyRow">
+          <label class="muted" for="itemQty" style="flex:1;min-width:110px">Cantidad<input id="itemQty" class="field" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></label>
+          <label class="muted" for="itemUnit" style="flex:1;min-width:100px">Unidad<select id="itemUnit" class="field"><option>g</option><option>mg</option><option>ml</option><option>gotas</option><option>unidades</option><option>tazas</option></select></label>
+        </div>
+        <label class="muted" for="itemTime">Hora<input id="itemTime" class="field" type="time"></label>
+        <div class="care" id="macroCare" hidden>
+          <b>Cuidado para una dosis alta</b>
+          <ul>
+            <li>Mejor en un lugar seguro y con alguien de confianza que esté sobrio.</li>
+            <li>Si tomas medicación (p. ej. litio o algunos antidepresivos), revisa interacciones antes, por ejemplo en <span class="sel">tripsit.me</span>.</li>
+            <li>Cuéntaselo a tu psicólogx. Si te sientes en peligro: 123 o Línea 192, opción 4.</li>
+          </ul>
+        </div>
+        <div class="row"><button class="btn primary" id="saveItem" type="button" style="flex:1">Agregar</button><button class="btn" id="cancelItem" type="button">Cancelar</button></div>
+      </div>
+      <div class="care soft" id="medCare" hidden><b>Revisa interacciones</b> Registraste medicación junto con hongos, adaptógenos o suplementos. Algunas combinaciones interactúan (p. ej. ashwagandha con medicación de tiroides o sedantes). Consúltalo con tu médico o en <span class="sel">tripsit.me</span>.</div>
+      <div class="care" id="psyRisk" hidden><b>Cuidado con los psicodélicos</b> Marcaste bipolaridad o historial de psicosis. Los hongos psilocibios pueden desencadenar episodios graves en estos casos. Háblalo con tu psicólogx o psiquiatra. Si notas cambios bruscos de ánimo, dormir muy poco o percepciones inusuales, busca ayuda: 123 o Línea 192, opción 4.</div>
+      <div class="muted small">Hifa guarda lo que anotas; no recomienda cantidades ni combinaciones.</div>
+      <div class="muted">Efectos que notaste</div>
+      <div class="row" id="effects"></div>
+    </div>
+
+    <button class="cta" type="button" data-go="bitacora">
+      <span class="mic"><svg class="i" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></span>
+      <span><b>Contar mi día</b><span>Habla o escribe. Queda en tu bitácora.</span></span>
+    </button>
+
+    <div class="quote" id="quoteCard"></div>
+
+    <button class="card cardbtn" type="button" data-go="habitos">
+      <div><h2>Hábitos de hoy</h2><div class="muted" id="habSum"></div></div>
+      <div class="dots" id="habDots"></div>
+    </button>
+    <div class="example" id="streak"></div>
+  </section>
+
+  <!-- BITÁCORA -->
+  <section id="v-bitacora" class="stack" hidden>
+    <div class="row between"><h1>Bitácora</h1><input id="jDate" class="field datein" type="date" aria-label="Día de la bitácora"></div>
+    <div class="muted">Escribe como salga. Todo queda cifrado en tu dispositivo.</div>
+    <div class="chat" id="chat" aria-live="polite"></div>
+    <div class="row" id="prompts"></div>
+    <div class="composer">
+      <label for="msgIn" class="sr">Mensaje</label>
+      <textarea id="msgIn" class="field" placeholder="Escribe cómo fue tu día…"></textarea>
+      <button class="recbtn" id="rec" type="button" aria-label="Dictar por voz"><svg class="i" viewBox="0 0 24 24" style="width:26px;height:26px"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4"/></svg></button>
+    </div>
+    <button class="btn primary" id="send" type="button">Guardar en la bitácora</button>
+    <div class="example">Por ahora Hifa responde con preguntas guía, sin IA. El dictado por voz lo procesa tu navegador o tu teclado (puede usar servicios de Google o Apple).</div>
+  </section>
+
+  <!-- PANEL -->
+  <section id="v-panel" class="stack" hidden>
+    <h1>Tu panel</h1>
+    <div class="seg" id="range"><button type="button" aria-pressed="false" data-d="7">Semana</button><button type="button" aria-pressed="true" data-d="30">30 días</button><button type="button" aria-pressed="false" data-d="90">Trimestre</button></div>
+    <div id="panelEmpty" class="card" hidden><h2>Aún no hay suficientes días</h2><p class="muted">Registra tu ánimo unos días y aquí verás tus tendencias.</p></div>
+    <div id="alertBox"></div>
+    <div class="card" id="chartCard">
+      <div class="row between"><h2>Ánimo diario</h2><span class="muted" id="avg"></span></div>
+      <div class="chartwrap"><svg id="chart" viewBox="0 0 340 150" width="100%" role="img" aria-label="Gráfico de ánimo"></svg></div>
+      <div class="legend"><span><i class="lg-line"></i>Ánimo</span><span><i class="lg-dot"></i>Micro</span><span><i class="lg-ring"></i>Macro</span><span><i class="lg-low"></i>Racha baja</span></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="muted">Días registrados</div><div class="v" id="kDays">–</div></div>
+      <div class="kpi"><div class="muted">Ánimo promedio</div><div class="v" id="kAvg">–</div></div>
+      <div class="kpi detail"><div class="muted">Ánimo con hongos</div><div class="v" id="kWith">–</div></div>
+      <div class="kpi detail"><div class="muted">Ánimo sin hongos</div><div class="v" id="kWithout">–</div></div>
+    </div>
+    <div class="card" id="scalesCard"></div>
+    <div class="card"><h2>Estresores más frecuentes</h2><div class="bars" id="stress"></div><p class="muted small" id="stressEmpty">Aparecen cuando los mencionas en tu bitácora.</p></div>
+    <div class="card" id="sensPanel" hidden><h2>Saturación sensorial</h2><div id="sensSum" class="muted"></div></div>
+    <div class="note detail" id="corrNote" hidden></div>
+    <div class="muted small">Las diferencias con y sin hongos son observacionales: no prueban causa.</div>
+    <button class="btn primary block" type="button" data-go="informe">Preparar informe para sesión</button>
+  </section>
+
+  <!-- ESCALA -->
+  <section id="v-escala" class="stack" hidden>
+    <button class="btn back" type="button" data-go="panel">← Panel</button>
+    <h1 id="scTitle"></h1>
+    <p class="muted" id="scIntro"></p>
+    <div class="stack" id="scQs"></div>
+    <div id="scResult"></div>
+    <button class="btn primary block" id="scSave" type="button">Ver resultado y guardar</button>
+    <p class="muted small">Escala de tamizaje de uso libre. No es un diagnóstico: la interpretación es de tu psicólogx.</p>
+  </section>
+
+  <!-- HÁBITOS -->
+  <section id="v-habitos" class="stack" hidden>
+    <div class="row between"><div><h1>Hábitos</h1><div class="muted">Toca para marcar hoy. Nada se reinicia a cero.</div></div><button class="btn small" id="editHab" type="button">Editar</button></div>
+    <div class="stack" id="habits"></div>
+    <div class="note" id="habNote" hidden></div>
+    <div class="row"><label class="sr" for="newHab">Nuevo hábito</label><input id="newHab" class="field" style="flex:1" placeholder="Nuevo hábito" maxlength="60"><button class="btn" id="addHab" type="button">Agregar</button></div>
+  </section>
+
+  <!-- YO -->
+  <section id="v-yo" class="stack" hidden>
+    <h1>Lo que busco</h1>
+    <div class="card">
+      <div class="eyebrow muted-eb">Mi brújula</div>
+      <label for="compass" class="muted">¿Qué buscas de la vida, en tus palabras?</label>
+      <textarea id="compass" class="field" placeholder="Quiero una vida con…"></textarea>
+      <div class="muted">Mis valores</div>
+      <div class="row" id="values"></div>
+      <div class="row"><label class="sr" for="newVal">Nuevo valor</label><input id="newVal" class="field" style="flex:1" placeholder="Otro valor" maxlength="30"><button class="btn" id="addVal" type="button">+</button></div>
+    </div>
+
+    <div class="quote" id="frase">
+      <div class="eyebrow">Frase del trimestre</div>
+      <div class="muted ink">¿Cómo te has sentido últimamente?</div>
+      <div class="row" id="feelings"></div>
+      <div class="stack" id="phrases"></div>
+      <details><summary class="muted">Escribir mi propia frase</summary>
+        <div class="stack" style="gap:8px;margin-top:8px">
+          <label class="muted" for="ownVerb">Verbo<input id="ownVerb" class="field" placeholder="Soltar" maxlength="20"></label>
+          <label class="muted" for="ownText">Frase<input id="ownText" class="field" placeholder="Suelto lo que no depende de mí…" maxlength="120"></label>
+        </div>
+      </details>
+      <button class="btn lav" id="usePhrase" type="button">Usar esta frase</button>
+    </div>
+
+    <div class="card" id="personal">
+      <h2>Personaliza Hifa</h2>
+      <div class="muted">Todo es opcional y autodeclarado. Hifa no diagnostica: solo ajusta preguntas, hábitos y frases.</div>
+      <div class="sub">¿Cómo funciona tu mente?</div>
+      <div class="row" id="minds"></div>
+      <div class="sub">¿Qué te gustaría trabajar?</div>
+      <div class="grp">Ánimo y emociones</div><div class="row" id="g1"></div>
+      <div class="grp">Experiencias difíciles</div><div class="row" id="g2"></div>
+      <div class="grp">Mente y cuerpo</div><div class="row" id="g3"></div>
+      <div class="grp">Consumo</div><div class="row" id="g4"></div>
+      <div class="grp">Crecimiento</div><div class="row" id="g5"></div>
+      <div class="care soft" id="tcaNote" hidden><b>Modo cuidado con la comida activo.</b> Hifa oculta hábitos de comida, peso y ejercicio con números.</div>
+      <div class="care" id="riskNote" hidden><b>Un cuidado importante</b> Con bipolaridad o historial de psicosis (propio o familiar), los psicodélicos pueden desencadenar episodios graves. Si registras hongos psilocibios, Hifa te lo recordará. Háblalo con tu psicólogx o psiquiatra.</div>
+      <div class="sub">Ajustes sensoriales</div>
+      <div>
+        <label class="switch"><span>Sin animaciones</span><input type="checkbox" data-pref="noanim"></label>
+        <label class="switch"><span>Sin vibración</span><input type="checkbox" data-pref="novib"></label>
+        <label class="switch"><span>Contraste suave<small>Colores menos intensos</small></span><input type="checkbox" data-pref="soft"></label>
+        <label class="switch"><span>Lenguaje literal<small>Preguntas directas, sin metáforas</small></span><input type="checkbox" data-pref="literal"></label>
+        <label class="switch"><span>Registro sensorial y social<small>Carga sensorial, batería social, saturación</small></span><input type="checkbox" data-pref="sensory"></label>
+        <label class="switch"><span>Mostrar «Lo que tomé hoy»<small>Hongos, adaptógenos, suplementos y medicación</small></span><input type="checkbox" data-pref="showIntake"></label>
+      </div>
+      <div class="sub">Tema</div>
+      <div class="seg" id="themeSeg"><button type="button" data-t="auto">Automático</button><button type="button" data-t="light">Claro</button><button type="button" data-t="dark">Oscuro</button></div>
+      <div class="sub">Vista del panel</div>
+      <div class="seg" id="viewSeg"><button type="button" data-v="simple">Simple</button><button type="button" data-v="det">Detallada</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Mi psicólogx</h2>
+      <label class="muted" for="psyName">Nombre<input id="psyName" class="field" maxlength="60"></label>
+      <label class="muted" for="psyPhone">Teléfono<input id="psyPhone" class="field" type="tel" inputmode="tel" maxlength="20"></label>
+      <label class="muted" for="nextSession">Próxima sesión<input id="nextSession" class="field" type="date"></label>
+      <p class="muted small">Un día antes de la sesión, Hifa te recuerda preparar el informe y hacer tu copia.</p>
+      <div class="sub">Vínculo con su Hifa</div>
+      <div id="linkBox" class="stack" style="gap:8px"></div>
+      <button class="btn primary block" type="button" data-go="enviar">Enviar a mi psicólogx</button>
+    </div>
+
+    <div class="card" id="dataCard">
+      <h2>Mis datos y copias</h2>
+      <p class="muted">Tus datos viven <b>solo en este dispositivo</b>, cifrados con tu clave. Hifa no tiene servidor: si pierdes el dispositivo sin copia, se pierde tu bitácora.</p>
+      <div id="backupState" class="bstate"></div>
+      <button class="btn primary block" id="doBackup" type="button">Hacer copia ahora (.json cifrado)</button>
+      <button class="btn block" id="restoreBtn" type="button">Restaurar desde una copia</button>
+      <input id="restoreFile" type="file" accept=".json,application/json,text/plain" hidden>
+      <div id="fsBox" class="stack" hidden style="gap:8px">
+        <div class="sub">Copia automática en un archivo</div>
+        <p class="muted small">En este navegador Hifa puede mantener actualizado un archivo cifrado en tu computador.</p>
+        <div class="row"><button class="btn" id="fsPick" type="button" style="flex:1">Elegir archivo</button><button class="btn" id="fsOff" type="button" hidden>Desactivar</button></div>
+        <div class="muted small" id="fsState"></div>
+      </div>
+      <div class="sub">Recordarme hacer copia cada</div>
+      <div class="seg" id="bkEvery"><button type="button" data-n="7">7 días</button><button type="button" data-n="14">14 días</button></div>
+      <div class="sub">Recordatorios en tu calendario</div>
+      <p class="muted small">Hifa no envía notificaciones cuando está cerrada. Agrega estos recordatorios a tu calendario:</p>
+      <div class="row"><button class="btn" id="icsBackup" type="button" style="flex:1">Copia semanal (domingo)</button></div>
+      <div class="row ponly"><label class="muted" for="icsTime" style="flex:1">Registro diario a las<input id="icsTime" class="field" type="time" value="20:00"></label><button class="btn" id="icsDaily" type="button" style="align-self:flex-end">Agregar</button></div>
+      <div class="sub">Seguridad</div>
+      <div class="muted small" id="persistState"></div>
+      <div class="row"><button class="btn" id="lockNow" type="button" style="flex:1">Bloquear ahora</button><button class="btn" id="changePass" type="button" style="flex:1">Cambiar clave</button></div>
+      <button class="btn danger block" id="wipeAll" type="button">Borrar todo de este dispositivo</button>
+    </div>
+
+    <div class="support" id="support">
+      <b>Red de apoyo</b>
+      <div id="supportLinks"></div>
+    </div>
+    <p class="example">Hifa 1.1 · versión local. Hifa no diagnostica ni recomienda dosis.</p>
+  </section>
+
+  <!-- INFORME -->
+  <section id="v-informe" class="stack report" hidden>
+    <button class="btn back noprint" type="button" data-go="panel">← Panel</button>
+    <h1>Informe para sesión</h1>
+    <div class="row noprint"><label class="muted" for="repFrom" style="flex:1">Desde<input id="repFrom" class="field" type="date"></label><label class="muted" for="repTo" style="flex:1">Hasta<input id="repTo" class="field" type="date"></label></div>
+    <div class="card">
+      <dl id="repStats"></dl>
+      <h2 class="noprint">Temas que quiero llevar</h2>
+      <textarea id="repTopics" class="field noprint" placeholder="Uno por línea"></textarea>
+      <label class="check noprint"><input type="checkbox" id="repJournal"> Incluir textos de la bitácora</label>
+      <h2 class="noprint">Vista previa</h2>
+      <pre id="repText"></pre>
+      <div class="row noprint"><button class="btn primary" id="copyRep" type="button" style="flex:1">Copiar</button><button class="btn" id="shareRep" type="button" style="flex:1">Compartir</button><button class="btn" id="printRep" type="button" style="flex:1">PDF</button></div>
+    </div>
+    <button class="btn block noprint" type="button" data-go="enviar">Enviar paquete cifrado a mi psicólogx</button>
+    <div class="muted small">Este informe resume tus registros. No es un diagnóstico; la interpretación es de tu psicólogx.</div>
+  </section>
+
+  <!-- ENVIAR A MI PSICÓLOGX -->
+  <section id="v-enviar" class="stack" hidden>
+    <button class="btn back" type="button" data-go="yo">← Yo</button>
+    <h1>Enviar a mi psicólogx</h1>
+    <div class="card" id="sendNoLink" hidden>
+      <h2>Primero vincula su Hifa</h2>
+      <p class="muted">Pídele a tu psicólogx su <b>código de Hifa</b> (lo encuentra en «Mi código») y pégalo en Yo › Mi psicólogx › Vínculo.</p>
+      <button class="btn" type="button" data-go="yo">Ir a vincular</button>
+    </div>
+    <div class="stack" id="sendForm">
+      <div class="bstate"><b id="sendTo"></b><span id="sendFp"></span></div>
+      <label class="muted" for="alias">¿Con qué nombre te verá?<input id="alias" class="field" maxlength="40" placeholder="Ej.: Carolina V."></label>
+      <div class="row"><label class="muted" for="sendFrom" style="flex:1">Desde<input id="sendFrom" class="field" type="date"></label><label class="muted" for="sendTo2" style="flex:1">Hasta<input id="sendTo2" class="field" type="date"></label></div>
+      <div class="card"><h2>Qué incluir</h2><div id="scopeList"></div></div>
+      <label class="muted" for="sendTopics">Temas que quiero llevar a la sesión<textarea id="sendTopics" class="field" placeholder="Uno por línea"></textarea></label>
+      <button class="btn primary block" id="sendPkg" type="button">Crear paquete cifrado y enviar</button>
+      <p class="muted small">El paquete viaja cifrado: aunque pase por WhatsApp o correo, solo la Hifa de tu psicólogx puede abrirlo. Tú decides qué incluye.</p>
+    </div>
+  </section>
+
+  <!-- ===== PROFESIONAL ===== -->
+  <section id="v-pacientes" class="stack" hidden>
+    <h1>Mis pacientes</h1>
+    <p class="muted">Tus pacientes te envían paquetes cifrados por WhatsApp o correo. Guárdalos e impórtalos aquí: solo tu Hifa puede abrirlos.</p>
+    <button class="btn primary block" id="importPkg" type="button">Importar paquete de un paciente</button>
+    <input id="pkgFile" type="file" accept=".json,application/json,text/plain" hidden>
+    <div class="stack" id="ptList"></div>
+  </section>
+
+  <section id="v-paciente" class="stack" hidden>
+    <button class="btn back" type="button" data-go="pacientes">← Pacientes</button>
+    <div id="ptHead" class="stack" style="gap:6px"></div>
+    <div id="ptAlerts" class="stack" style="gap:8px"></div>
+    <div class="seg" id="ptRange"><button type="button" aria-pressed="true" data-d="30">30 días</button><button type="button" aria-pressed="false" data-d="90">90 días</button></div>
+    <div class="card" id="ptChartCard">
+      <div class="row between"><h2>Ánimo diario</h2><span class="muted" id="ptAvg"></span></div>
+      <div class="chartwrap"><svg id="ptChart" viewBox="0 0 340 150" width="100%" role="img" aria-label="Ánimo del paciente"></svg></div>
+      <div class="legend"><span><i class="lg-line"></i>Ánimo</span><span><i class="lg-dot"></i>Micro</span><span><i class="lg-ring"></i>Macro</span><span><i class="lg-low"></i>Racha baja</span></div>
+    </div>
+    <div class="kpis"><div class="kpi"><div class="muted">Días registrados</div><div class="v" id="ptDays">–</div></div><div class="kpi"><div class="muted">Con / sin hongos</div><div class="v" id="ptWith">–</div></div></div>
+    <div class="card"><h2>Resumen recibido</h2><pre id="ptReport" class="rep"></pre><button class="btn" id="copyPtRep" type="button">Copiar resumen</button></div>
+    <div class="card">
+      <h2>Notas privadas de sesión</h2>
+      <p class="muted small">Solo quedan en tu dispositivo, cifradas. El paciente no las ve ni se envían a nadie.</p>
+      <label class="sr" for="noteIn">Nota</label><textarea id="noteIn" class="field" placeholder="Observaciones para la próxima sesión…"></textarea>
+      <button class="btn lav" id="addNote" type="button">Guardar nota</button>
+      <div class="stack" id="notes" style="gap:8px"></div>
+    </div>
+    <button class="btn danger block" id="delPatient" type="button">Eliminar este paciente de mi dispositivo</button>
+  </section>
+
+  <section id="v-codigo" class="stack" hidden>
+    <h1>Mi código</h1>
+    <p class="muted">Compártelo con tus pacientes. Lo pegan una vez en su Hifa y desde ahí sus paquetes solo los puedes abrir tú.</p>
+    <label class="muted" for="proName">Tu nombre (como te verán tus pacientes)<input id="proName" class="field" maxlength="60" placeholder="Ej.: Ps. Laura Martínez"></label>
+    <div class="card">
+      <div class="muted small">Huella para verificar en sesión</div>
+      <div class="fp" id="proFp"></div>
+      <label class="sr" for="proCode">Código</label><textarea id="proCode" class="field code" readonly></textarea>
+      <div class="row"><button class="btn primary" id="shareCode" type="button" style="flex:1">Compartir código</button><button class="btn" id="copyCode" type="button" style="flex:1">Copiar</button></div>
+    </div>
+    <div class="note">En la primera sesión, pide a tu paciente que te lea la huella que le muestra su Hifa. Si coincide con la tuya, el vínculo es seguro.</div>
+  </section>
+
+  <section id="v-ajustes" class="stack" hidden>
+    <h1>Ajustes</h1>
+    <div class="card"><div class="sub">Tema</div><div class="seg" id="themeSeg2"><button type="button" data-t="auto">Automático</button><button type="button" data-t="light">Claro</button><button type="button" data-t="dark">Oscuro</button></div>
+      <label class="switch"><span>Sin animaciones</span><input type="checkbox" id="proNoanim"></label></div>
+    <div id="ajustesBox"></div>
+    <p class="example">Hifa 1.1 · modo profesional local. Los datos de tus pacientes y tus notas viven cifrados solo en este dispositivo.</p>
+  </section>
+</div>
+
+<nav class="tabs" id="tabs" aria-label="Secciones" hidden><div>
+  <button type="button" data-tab="hoy" aria-current="page"><svg class="i" viewBox="0 0 24 24"><path d="M3 12a9 8 0 0 1 18 0z"/><path d="M10 12v7a2 2 0 0 0 4 0v-7"/></svg>Hoy</button>
+  <button type="button" data-tab="bitacora"><svg class="i" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Bitácora</button>
+  <button type="button" data-tab="panel"><svg class="i" viewBox="0 0 24 24"><path d="M3 3v18h18M7 15l4-4 3 3 5-6"/></svg>Panel</button>
+  <button type="button" data-tab="habitos"><svg class="i" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Hábitos</button>
+  <button type="button" data-tab="yo"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg>Yo</button>
+</div></nav>
+
+<nav class="tabs" id="tabsPro" aria-label="Secciones profesional" hidden><div style="grid-template-columns:repeat(3,minmax(0,1fr))">
+  <button type="button" data-tab="pacientes"><svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M17 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"/></svg>Pacientes</button>
+  <button type="button" data-tab="codigo"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Mi código</button>
+  <button type="button" data-tab="ajustes"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>Ajustes</button>
+</div></nav>
+
+<dialog id="helpDlg" aria-labelledby="helpT">
+  <h2 id="helpT">Si estás en peligro, pide ayuda ya</h2>
+  <p class="muted">Lo que sientes importa y no tienes que pasarlo solx.</p>
+  <div id="helpLinks" class="stack" style="gap:8px"></div>
+  <button class="btn block" type="button" id="helpClose">Cerrar</button>
+</dialog>
+
+<dialog id="passDlg" aria-labelledby="passT">
+  <form method="dialog" class="stack" id="passForm">
+    <h2 id="passT">Escribe la clave</h2>
+    <p class="muted" id="passMsg"></p>
+    <label class="muted" for="passIn">Clave<input id="passIn" class="field" type="password" autocomplete="current-password"></label>
+    <label class="muted" for="passIn2" id="passIn2L" hidden>Repite la clave<input id="passIn2" class="field" type="password" autocomplete="new-password"></label>
+    <div class="row"><button class="btn primary" value="ok" style="flex:1">Continuar</button><button class="btn" value="cancel" formnovalidate>Cancelar</button></div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="demo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
