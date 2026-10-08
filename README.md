@@ -14,9 +14,9 @@ Este espacio es para construir Hifa en comunidad. 🌱
 
 | | Enlace |
 |---|---|
-| 📱 **App, lista para usar** | https://astounding-griffin-66ecd3.netlify.app/ |
-| 🧪 **Demo paciente** | https://astounding-griffin-66ecd3.netlify.app/demo-paciente/ |
-| 🩺 **Demo profesional** | https://astounding-griffin-66ecd3.netlify.app/demo-profesional/ |
+| 📱 **App, lista para usar** |[(https://hifa-app.netlify.app/)](https://hifa-app.netlify.app/) |
+| 🧪 **Demo paciente** | https://hifa-app.netlify.app/demo-paciente/ |
+| 🩺 **Demo profesional** | https://hifa-app.netlify.app/demo-profesional/ |
 | 💬 **Retroalimentación** | https://github.com/cvarelalopera/hifa/discussions |
 
 Las demos tienen datos ficticios y se abren solas. Usa **Reiniciar demo** para volver al inicio.
